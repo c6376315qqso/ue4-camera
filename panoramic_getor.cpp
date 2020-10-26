@@ -18,14 +18,18 @@
 
 #include "panoramic_getor.h"
 
-#define LENX 1024*8
-#define LENY 1024*8
+#define LENX 1024
+#define LENY 1024
 #define FOV 90
 
 FBox2D Apanoramic_getor::GetBbox(USceneCaptureComponent2D* camera, AActor * person) {
     TArray<FVector> Points;
-    FVector Origin = person->GetActorLocation(), Extend;
-    person->GetActorBounds(true, Origin, Extend, false);
+    
+    FVector Origin, Extend;
+    USkeletalMeshComponent* playermesh = Cast<USkeletalMeshComponent>(person->GetComponentByClass(USkeletalMeshComponent::StaticClass()));
+    Origin = playermesh->GetComponentLocation();
+    Extend = playermesh->CalcBounds(playermesh->GetComponentTransform()).BoxExtent;
+    Origin.Z += Extend.Z;
    // UE_LOG(LogTemp, Warning, TEXT("loc to %f %f %f"), Extend.X, Extend.Y, Extend.Z);
 
     Points.Add(Origin + FVector(Extend.X, Extend.Y, Extend.Z));
