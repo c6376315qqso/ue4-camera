@@ -11,6 +11,9 @@
 #include "ImageUtils.h"
 #include <direct.h>
 #include <io.h>
+#include <time.h>
+
+
 #include "GenericPlatform/GenericPlatformMisc.h"
 
 #include "panoramic_getor.h"
@@ -214,13 +217,16 @@ void Apanoramic_getor::Tick(float DeltaTime)
         frame_cnt++;
         return;
     }
+
+    clock_t start1 = clock();
     Camera->CaptureScene();
-    CameraBack->CaptureScene();
+    
     //FlushRenderingCommands();
+
+    
     FTextureRenderTargetResource* RenderResource = Camera->TextureTarget->GameThread_GetRenderTargetResource();
 
     FTextureRenderTargetResource* RenderResourceS = NULL;
-    FTextureRenderTargetResource* RenderResourceB = CameraBack->TextureTarget->GameThread_GetRenderTargetResource();
 
     FString name = this->GetName();
     TArray<FColor> image, depth, back, seg;
@@ -231,14 +237,15 @@ void Apanoramic_getor::Tick(float DeltaTime)
     FIntPoint size = { LENX, LENY };
 
 
-
-    RenderResourceB->ReadPixels(back);
+    
     RenderResource->ReadPixels(image);
+
+    clock_t end1 = clock();
+    UE_LOG(LogTemp, Warning, TEXT("step1 cost %f"), float(end1 - start1) / CLOCKS_PER_SEC);
 
     int rela_cnt = frame_cnt - 4;
 
     //FlushRenderingCommands();
-
     string folder1("C:\\Users\\liule\\Desktop\\save\\prime\\");
     string folder2("C:\\Users\\liule\\Desktop\\save\\seg\\");
     string folder3("C:\\Users\\liule\\Desktop\\save\\back\\");
@@ -266,17 +273,24 @@ void Apanoramic_getor::Tick(float DeltaTime)
  
     path_b = folder3 + to_string(rela_cnt) +  "_b.png";
 
+
     FString CaptureFilename = FString(path_i.c_str());
     TArray<uint8> CompressedBitmap;
     FImageUtils::CompressImageArray(LENX, LENY, image, CompressedBitmap);
     FFileHelper::SaveArrayToFile(CompressedBitmap, *CaptureFilename);
 
+    if (rela_cnt == 1) {
+        CameraBack->CaptureScene();
+        FTextureRenderTargetResource* RenderResourceB = CameraBack->TextureTarget->GameThread_GetRenderTargetResource();
+        RenderResourceB->ReadPixels(back);
+        CaptureFilename = FString(path_b.c_str());
+        TArray<uint8> CompressedBitmapB;
+        FImageUtils::CompressImageArray(LENX, LENY, back, CompressedBitmapB);
+        FFileHelper::SaveArrayToFile(CompressedBitmapB, *CaptureFilename);
+    }
+    clock_t end2 = clock();
+    UE_LOG(LogTemp, Warning, TEXT("step2 cost %f"), float(end2 - end1) / CLOCKS_PER_SEC);
 
-    CaptureFilename = FString(path_b.c_str());
-    TArray<uint8> CompressedBitmapB;
-    FImageUtils::CompressImageArray(LENX, LENY, back, CompressedBitmapB);
-    FFileHelper::SaveArrayToFile(CompressedBitmapB, *CaptureFilename);
-    
     int cnt = 0;
     for (TActorIterator<AActor> actor(GetWorld()); actor; ++actor)
     {
@@ -320,21 +334,20 @@ void Apanoramic_getor::Tick(float DeltaTime)
                 int NewX = bbox.Max.X - bbox.Min.X + 1;
                 int NewY = bbox.Max.Y - bbox.Min.Y + 1;
 
-                //ofstream of2(path_s + "_num.txt");
+                ofstream of2(path_s + "_num.txt");
+                for (int i = lby; i <= uby; i++) {
+                    for (int j = lbx; j <= ubx; j++) {
+                        FColor& t = seg[i * LENX + j];
+                        of2 << t.ToPackedBGRA() << " ";
+                    }
+                }
+                of2.close();
 
-                //for (int i = lby; i <= uby; i++) {
-                //    for (int j = lbx; j <= ubx; j++) {
-                //        FColor& t = seg[i * LENX + j];
-                //        of2 << t.ToPackedBGRA() << " ";
-                //    }
-                //}
-                //of2.close();
 
-
-                CaptureFilename = FString((path_s + "_s.png").c_str());
-                TArray<uint8> CompressedBitmapS;
-                FImageUtils::CompressImageArray(LENX, LENY, seg, CompressedBitmapS);
-                FFileHelper::SaveArrayToFile(CompressedBitmapS, *CaptureFilename);
+                //CaptureFilename = FString((path_s + "_s.png").c_str());
+                //TArray<uint8> CompressedBitmapS;
+                //FImageUtils::CompressImageArray(LENX, LENY, seg, CompressedBitmapS);
+                //FFileHelper::SaveArrayToFile(CompressedBitmapS, *CaptureFilename);
                 //
                 TArray<FVector> bones = get_bones(*actor);
                 TArray<FVector2D> bones_2d;
@@ -344,7 +357,7 @@ void Apanoramic_getor::Tick(float DeltaTime)
                     FVector2D bone_loc2d;
                     AMyGameState::ProjectWorldLocationToCapturedScreen(CameraSeg, bone_loc, size, bone_loc2d);
                     bones_2d.Emplace(bone_loc2d);
-                }
+                } 
                 all_bones2d[mapid[actor->GetUniqueID()]].Emplace(rela_cnt, bones_2d);
                 string path_l = folder4;
                 path_l += "loc_s" + to_string(actor_cnt) + "_" + to_string(rela_cnt) + ".txt";
@@ -362,6 +375,9 @@ void Apanoramic_getor::Tick(float DeltaTime)
 
         
     }
+    clock_t end3 = clock();
+    UE_LOG(LogTemp, Warning, TEXT("step3 cost %f"), float(end3 - end2) / CLOCKS_PER_SEC);
+
     if (rela_cnt >= 10) {
         GetWorld()->GetFirstPlayerController()->ConsoleCommand("quit");
     }
