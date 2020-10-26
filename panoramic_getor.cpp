@@ -15,13 +15,16 @@
 
 #include "panoramic_getor.h"
 
-#define LENX 1024
-#define LENY 1024
+#define LENX 1024*8
+#define LENY 1024*8
 #define FOV 90
 
-FBox2D Apanoramic_getor::GetBbox(USceneCaptureComponent2D* camera, person p) {
+FBox2D Apanoramic_getor::GetBbox(USceneCaptureComponent2D* camera, AActor * person) {
     TArray<FVector> Points;
-    FVector Origin = p.loc, Extend = p.extend;
+    FVector Origin = person->GetActorLocation(), Extend;
+    person->GetActorBounds(true, Origin, Extend, false);
+   // UE_LOG(LogTemp, Warning, TEXT("loc to %f %f %f"), Extend.X, Extend.Y, Extend.Z);
+
     Points.Add(Origin + FVector(Extend.X, Extend.Y, Extend.Z));
     Points.Add(Origin + FVector(-Extend.X, Extend.Y, Extend.Z));
     Points.Add(Origin + FVector(Extend.X, -Extend.Y, Extend.Z));
@@ -36,12 +39,15 @@ FBox2D Apanoramic_getor::GetBbox(USceneCaptureComponent2D* camera, person p) {
     for (auto& Point : Points) {
         FVector2D Pixel;
         AMyGameState::ProjectWorldLocationToCapturedScreen(Camera, Point, size, Pixel);
-        MaxPixel.X = FMath::Min(Pixel.X, MaxPixel.X);
-        MaxPixel.Y = FMath::Min(Pixel.Y, MaxPixel.Y);
+        MaxPixel.X = FMath::Max(Pixel.X, MaxPixel.X);
+        MaxPixel.Y = FMath::Max(Pixel.Y, MaxPixel.Y);
         MinPixel.X = FMath::Min(Pixel.X, MinPixel.X);
         MinPixel.Y = FMath::Min(Pixel.Y, MinPixel.Y);
-
     }
+    if (MinPixel.X < 0) MinPixel.X = 0;
+    if (MinPixel.Y < 0) MinPixel.Y = 0;
+    if (MaxPixel.X >= LENX) MaxPixel.X = LENX - 1;
+    if (MaxPixel.Y >= LENY) MaxPixel.Y = LENY - 1;
     return FBox2D(MinPixel, MaxPixel);
 
 }
@@ -174,12 +180,14 @@ void Apanoramic_getor::EndPlay(const EEndPlayReason::Type EndPlayReason)
             }
         }
     }
+    of.close();
 }
 
 
 void write_loc(int id, int x, int y, string & path) {
     ofstream of(path, ios::app);
     of << id << " " << x << " " << y << '\n';
+    of.close();
 }
 
 TArray<FVector> get_bones(AActor* actor) {
@@ -294,15 +302,40 @@ void Apanoramic_getor::Tick(float DeltaTime)
                 FlushRenderingCommands();
                 RenderResourceS = CameraSeg->TextureTarget->GameThread_GetRenderTargetResource();
                 RenderResourceS->ReadPixels(seg);
+
+                FBox2D bbox = GetBbox(CameraSeg, *actor);
+                TArray<FColor> seg_crop;
+
+                int lbx = bbox.Min.X, ubx = bbox.Max.X;
+                int lby = bbox.Min.Y, uby = bbox.Max.Y;
+
                 path_s = folder2;
                 path_s += to_string(actor_cnt);
-                path_s += "_" + to_string(rela_cnt) + "_s.png";
 
-                CaptureFilename = FString(path_s.c_str());
+                path_s += "_" + to_string(rela_cnt);
+                ofstream of(path_s + "_box.txt");
+                of << int(bbox.Min.X) << " " << int(bbox.Min.Y) << "\n";
+                of << int(bbox.Max.X) << " " << int(bbox.Max.Y);
+                of.close();
+                int NewX = bbox.Max.X - bbox.Min.X + 1;
+                int NewY = bbox.Max.Y - bbox.Min.Y + 1;
+
+                //ofstream of2(path_s + "_num.txt");
+
+                //for (int i = lby; i <= uby; i++) {
+                //    for (int j = lbx; j <= ubx; j++) {
+                //        FColor& t = seg[i * LENX + j];
+                //        of2 << t.ToPackedBGRA() << " ";
+                //    }
+                //}
+                //of2.close();
+
+
+                CaptureFilename = FString((path_s + "_s.png").c_str());
                 TArray<uint8> CompressedBitmapS;
                 FImageUtils::CompressImageArray(LENX, LENY, seg, CompressedBitmapS);
                 FFileHelper::SaveArrayToFile(CompressedBitmapS, *CaptureFilename);
-                
+                //
                 TArray<FVector> bones = get_bones(*actor);
                 TArray<FVector2D> bones_2d;
                 all_bones[mapid[actor->GetUniqueID()]].Emplace(rela_cnt, bones);
@@ -329,7 +362,7 @@ void Apanoramic_getor::Tick(float DeltaTime)
 
         
     }
-    if (rela_cnt >= 50) {
+    if (rela_cnt >= 10) {
         GetWorld()->GetFirstPlayerController()->ConsoleCommand("quit");
     }
 

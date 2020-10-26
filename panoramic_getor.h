@@ -44,7 +44,7 @@ public:
 	TMap< int32, TMap<int32, TArray<FVector> > > all_bones;
 	TMap< int32, TMap<int32, TArray<FVector2D> > > all_bones2d;
 
-	FBox2D GetBbox(USceneCaptureComponent2D* camera, person p);
+	FBox2D GetBbox(USceneCaptureComponent2D* camera, AActor* p);
 	int rotate_id;
 	int frame_cnt;
 	void initRotation(int id);
