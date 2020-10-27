@@ -7,9 +7,12 @@ import time
 
 
 frame_lb = 1
-frame_ub = 5
+frame_ub = 500
 people_cnt = 10
 col = {}
+back = cv2.imread('back/' + str(1) + '_b.png')
+
+sem = threading.Semaphore(8)
 
 
 def get_col(v):
@@ -30,15 +33,8 @@ def mask(back, seg, col):
     return result
 
 
-if not os.path.exists('result'):
-    os.makedirs('result')
-
-back = cv2.imread('back/' + str(1) + '_b.png')
-for i in range(frame_lb, frame_ub + 1):
-    for j in range(1, people_cnt + 1):
-        if not os.path.exists('seg/' + str(j) + '_' + str(i) + '_box.txt'):
-            print('no %d %d' % (i, j))
-            continue
+def work(i, j):
+    with sem:
         bbox_file = open('seg/' + str(j) + '_' + str(i) + '_box.txt')
         bbox = list(map(lambda x: int(x), bbox_file.read().split()))
         lenx = bbox[2] - bbox[0] + 1
@@ -53,9 +49,22 @@ for i in range(frame_lb, frame_ub + 1):
                 image[x][y][1] = int(binary[8:16], 2)
                 image[x][y][2] = int(binary[16:24], 2)
                 # image[x][y][3] = int(binary[24:32], 2)
-        
-        result = mask(back[bbox[1]:bbox[3] + 1, bbox[0]:bbox[2] + 1, :], image, get_col(j))
+
+        result = mask(back[bbox[1]:bbox[3] + 1, bbox[0]
+                      :bbox[2] + 1, :], image, get_col(j))
         cv2.imwrite('result/segment_' + str(j).zfill(3) +
                     '_' + str(i).zfill(4) + '.png', result)
         print('result/segment_' + str(j).zfill(3) +
               '_' + str(i).zfill(4) + '.png')
+
+
+if not os.path.exists('result'):
+    os.makedirs('result')
+
+for i in range(frame_lb, frame_ub + 1):
+    for j in range(1, people_cnt + 1):
+        if not os.path.exists('seg/' + str(j) + '_' + str(i) + '_box.txt'):
+            print('no %d %d' % (i, j))
+            continue
+            t = threading.Thread(target=work(i, j), args=(i, j))
+            t.start()
