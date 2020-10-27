@@ -18,9 +18,10 @@
 
 #include "panoramic_getor.h"
 
-#define LENX 1024
-#define LENY 1024
+#define LENX 1024*8
+#define LENY 1024*8
 #define FOV 90
+#define FRAME_NUM 10
 
 FBox2D Apanoramic_getor::GetBbox(USceneCaptureComponent2D* camera, AActor * person) {
     TArray<FVector> Points;
@@ -85,6 +86,7 @@ Apanoramic_getor::Apanoramic_getor()
 
     ViewCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("VCamera"));
     ViewCamera->SetupAttachment(RootComponent);
+    time1 = clock();
 }
 
 
@@ -103,6 +105,7 @@ bool match_people(FString name) {
 // Called when the game starts or when spawned
 void Apanoramic_getor::BeginPlay()
 {
+    
 	Super::BeginPlay();
     if (GetWorld() == NULL) {
         UE_LOG(LogTemp, Warning, TEXT("No World"));
@@ -188,6 +191,9 @@ void Apanoramic_getor::EndPlay(const EEndPlayReason::Type EndPlayReason)
         }
     }
     of.close();
+    clock_t end = clock();
+
+    UE_LOG(LogTemp, Warning, TEXT("tot cost %f"), float(end - time1) / CLOCKS_PER_SEC);
 }
 
 
@@ -382,7 +388,7 @@ void Apanoramic_getor::Tick(float DeltaTime)
     clock_t end3 = clock();
     UE_LOG(LogTemp, Warning, TEXT("step3 cost %f"), float(end3 - end2) / CLOCKS_PER_SEC);
 
-    if (rela_cnt >= 10) {
+    if (rela_cnt >= FRAME_NUM) {
         GetWorld()->GetFirstPlayerController()->ConsoleCommand("quit");
     }
 

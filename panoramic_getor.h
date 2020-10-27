@@ -8,6 +8,7 @@
 #include "Internationalization/Regex.h"
 #include "EngineUtils.h"
 #include "Camera/CameraComponent.h"
+#include <time.h>
 #include <map>
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -29,7 +30,7 @@ public:
 	USceneCaptureComponent2D* CameraDepth;
 
 	UCameraComponent* ViewCamera;
-	UTextureRenderTarget2D* RenderTargetDepth;
+	UTextureRenderTarget2D* RenderTargetDepth; 
 	UTextureRenderTarget2D* RenderTargetSeg;
 	UTextureRenderTarget2D* RenderTarget;
 	UTextureRenderTarget2D* RenderTargetBack;
@@ -39,7 +40,7 @@ public:
 	int lenx, leny;
 	TArray< TArray<FColor> > images, depths;
 	TArray< pair<int, TArray<int> > > changes;
-
+	clock_t time1;
 
 	TMap< int32, TMap<int32, TArray<FVector> > > all_bones;
 	TMap< int32, TMap<int32, TArray<FVector2D> > > all_bones2d;
