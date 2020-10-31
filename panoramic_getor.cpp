@@ -355,9 +355,10 @@ void Apanoramic_getor::Tick(float DeltaTime)
         FTextureRenderTargetResource* RenderResourceD = CameraDepth->TextureTarget->GameThread_GetRenderTargetResource();
         RenderResourceD->ReadFloat16Pixels(FloatColorDepthData);
         FFileHelper::SaveArrayToFile(Array2Npy(FloatColorDepthData, LENX, LENY, 1), *CaptureFilename);
+        clock_t end3 = clock();
+        UE_LOG(LogTemp, Warning, TEXT("step3 cost %f"), float(end3 - end2) / CLOCKS_PER_SEC);
     }
-    clock_t end3 = clock();
-    UE_LOG(LogTemp, Warning, TEXT("step2 cost %f"), float(end3 - end2) / CLOCKS_PER_SEC);
+
 
 
     int cnt = 0;
@@ -396,7 +397,7 @@ void Apanoramic_getor::Tick(float DeltaTime)
                 path_s += to_string(actor_cnt);
 
                 path_s += "_" + to_string(rela_cnt);
-                UE_LOG(LogTemp, Warning, TEXT("seg path %s"), path_s.c_str());
+                //UE_LOG(LogTemp, Warning, TEXT("seg path %s"), path_s.c_str());
 
                 ofstream of(path_s + "_box.txt");
                 of << int(bbox.Min.X) << " " << int(bbox.Min.Y) << "\n";
@@ -404,16 +405,20 @@ void Apanoramic_getor::Tick(float DeltaTime)
                 of.close();
                 int NewX = bbox.Max.X - bbox.Min.X + 1;
                 int NewY = bbox.Max.Y - bbox.Min.Y + 1;
-
-                ofstream of2(path_s + "_num.txt");
+                TArray<FColor> crop;
+                //ofstream of2(path_s + "_num.txt");
                 for (int i = lby; i <= uby; i++) {
                     for (int j = lbx; j <= ubx; j++) {
                         FColor& t = seg[i * LENX + j];
-                        of2 << t.ToPackedBGRA() << " ";
+                        //of2 << t.ToPackedBGRA() << " ";
+                        crop.Emplace(t);
                     }
                 }
-                of2.close();
-
+                //of2.close();
+                CaptureFilename = FString((path_s + "_s.png").c_str());
+                TArray<uint8> CompressedBitmapS;
+                FImageUtils::CompressImageArray(ubx-lbx+1, uby-lby+1, crop, CompressedBitmapS);
+                FFileHelper::SaveArrayToFile(CompressedBitmapS, *CaptureFilename);
 
                 //CaptureFilename = FString((path_s + "_s.png").c_str());
                 //TArray<uint8> CompressedBitmapS;
@@ -440,7 +445,8 @@ void Apanoramic_getor::Tick(float DeltaTime)
 
     }
     clock_t end4 = clock();
-    UE_LOG(LogTemp, Warning, TEXT("step3 cost %f"), float(end4 - end3) / CLOCKS_PER_SEC);
+    UE_LOG(LogTemp, Warning, TEXT("step4 cost %f"), float(end4 - end2) / CLOCKS_PER_SEC);
+    UE_LOG(LogTemp, Warning, TEXT("one tick cost %f"), float(end4 - start1) / CLOCKS_PER_SEC);
 
     if (rela_cnt >= FRAME_NUM) {
         GetWorld()->GetFirstPlayerController()->ConsoleCommand("quit");

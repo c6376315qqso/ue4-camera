@@ -52,16 +52,8 @@ def work(i, j):
         bbox = list(map(lambda x: int(x), bbox_file.read().split()))
         lenx = bbox[2] - bbox[0] + 1
         leny = bbox[3] - bbox[1] + 1
-        file = open('seg/' + str(j) + '_' + str(i) + '_num.txt')
-        num = list(map(lambda x: int(x), file.read()[:-1].split(' ')))
-        image = np.zeros((leny, lenx, 4), dtype=np.uint8)
-        for x in range(0, leny):
-            for y in range(0, lenx):
-                binary = bin(num[x * lenx + y]).replace('0b', '').zfill(32)
-                image[x][y][0] = int(binary[0:8], 2)
-                image[x][y][1] = int(binary[8:16], 2)
-                image[x][y][2] = int(binary[16:24], 2)
-                image[x][y][3] = int(binary[24:32], 2)
+
+        image = cv2.imread('seg/' + str(j) + '_' + str(i) + '_s.png', cv2.IMREAD_UNCHANGED)
 
         result = mask(back[bbox[1]:bbox[3] + 1, bbox[0]
                       : bbox[2] + 1, :], image, get_col(j))
