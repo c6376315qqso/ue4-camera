@@ -18,9 +18,9 @@
 
 #define LENX 1024*8
 #define LENY 1024*8
-#define FOV 90
-#define FRAME_NUM 5
-#define NEED_DEP 0
+#define FOV 50
+#define FRAME_NUM 4
+#define NEED_DEP 1
 #define FOLDER string("C:\\Users\\liule\\Desktop\\save\\")
 
 FBox2D Apanoramic_getor::GetBbox(USceneCaptureComponent2D* camera, AActor* person) {
@@ -133,7 +133,7 @@ void Apanoramic_getor::BeginPlay()
 
     CameraSeg->FOVAngle = FOV;
     CameraSeg->TextureTarget = RenderTargetSeg;
-    CameraSeg->CaptureSource = SCS_SceneColorHDR;
+    CameraSeg->CaptureSource = SCS_FinalColorLDR;
     CameraSeg->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
 
     Camera->FOVAngle = FOV;
@@ -143,7 +143,7 @@ void Apanoramic_getor::BeginPlay()
 
     CameraBack->FOVAngle = FOV;
     CameraBack->TextureTarget = RenderTargetBack;
-    CameraBack->CaptureSource = SCS_SceneColorHDR;
+    CameraBack->CaptureSource = SCS_FinalColorLDR;
     CameraBack->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
 
 
@@ -300,13 +300,13 @@ void Apanoramic_getor::Tick(float DeltaTime)
     UE_LOG(LogTemp, Warning, TEXT("step1 cost %f"), float(end1 - start1) / CLOCKS_PER_SEC);
 
     int rela_cnt = frame_cnt - 4;
-
+    string folder = FOLDER + string(TCHAR_TO_UTF8(*name)) + "\\";
     //FlushRenderingCommands();
-    string folder1(FOLDER + "prime\\");
-    string folder2(FOLDER + "seg\\");
-    string folder3(FOLDER + "back\\");
-    string folder4(FOLDER + "loc\\");
-    string folder5(FOLDER + "dep\\");
+    string folder1(folder + "prime\\");
+    string folder2(folder + "seg\\");
+    string folder3(folder + "back\\");
+    string folder4(folder + "loc\\");
+    string folder5(folder + "dep\\");
 
 
     if (_access(folder1.c_str(), 0) == -1)
@@ -317,7 +317,8 @@ void Apanoramic_getor::Tick(float DeltaTime)
         _mkdir(folder3.c_str());
     if (_access(folder4.c_str(), 0) == -1)
         _mkdir(folder4.c_str());
-
+    if (_access(folder5.c_str(), 0) == -1)
+        _mkdir(folder5.c_str());
 
     //folder1 += string(TCHAR_TO_UTF8(*name)) + "_";
     //folder2 += string(TCHAR_TO_UTF8(*name)) + "_";
@@ -326,7 +327,7 @@ void Apanoramic_getor::Tick(float DeltaTime)
     string path_i, path_s, path_b, path_d;
     string rela_cnt_s = to_string(rela_cnt);
     while (rela_cnt_s.size() < 4) rela_cnt_s = "0" + rela_cnt_s;
-    path_i = folder1 + "image_" + rela_cnt_s + ".png";
+    path_i = folder1  + "image_" + rela_cnt_s + ".png";
 
     path_b = folder3 + to_string(rela_cnt) + "_b.png";
     path_d = folder5 + to_string(rela_cnt) + "_d.npy";
@@ -348,6 +349,7 @@ void Apanoramic_getor::Tick(float DeltaTime)
     clock_t end2 = clock();
     UE_LOG(LogTemp, Warning, TEXT("step2 cost %f"), float(end2 - end1) / CLOCKS_PER_SEC);
     if (NEED_DEP) {
+        CameraDepth->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_LegacySceneCapture;
         CaptureFilename = FString(path_d.c_str());
         TArray<float> depth;
         CameraDepth->CaptureScene();
@@ -381,9 +383,16 @@ void Apanoramic_getor::Tick(float DeltaTime)
                 }
                 int actor_cnt = mapid[actor->GetUniqueID()];
                 UE_LOG(LogTemp, Warning, TEXT("matched %s"), *actor->GetClass()->GetName());
+                CameraDepth->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
+                CameraDepth->ShowOnlyActors = showactors;
+                CameraDepth->CaptureScene();
                 CameraSeg->ShowOnlyActors = showactors;
                 CameraSeg->CaptureScene();
                 //FlushRenderingCommands();
+                TArray<FFloat16Color> rgbdf;
+                FTextureRenderTargetResource* RenderResourceD = CameraDepth->TextureTarget->GameThread_GetRenderTargetResource();
+                RenderResourceD->ReadFloat16Pixels(rgbdf);
+
                 RenderResourceS = CameraSeg->TextureTarget->GameThread_GetRenderTargetResource();
                 RenderResourceS->ReadPixels(seg);
 
@@ -406,14 +415,21 @@ void Apanoramic_getor::Tick(float DeltaTime)
                 int NewX = bbox.Max.X - bbox.Min.X + 1;
                 int NewY = bbox.Max.Y - bbox.Min.Y + 1;
                 TArray<FColor> crop;
+                TArray<FFloat16Color> depthdata;
+
                 //ofstream of2(path_s + "_num.txt");
                 for (int i = lby; i <= uby; i++) {
                     for (int j = lbx; j <= ubx; j++) {
-                        FColor& t = seg[i * LENX + j];
+                        FColor &t = seg[i * LENX + j];
                         //of2 << t.ToPackedBGRA() << " ";
+                        depthdata.Emplace(rgbdf[i * LENX + j]);
                         crop.Emplace(t);
                     }
                 }
+                CaptureFilename = FString((path_s + "_d.npy").c_str());
+
+                FFileHelper::SaveArrayToFile(Array2Npy(depthdata, ubx - lbx + 1, uby - lby + 1, 1), *CaptureFilename);
+
                 //of2.close();
                 CaptureFilename = FString((path_s + "_s.png").c_str());
                 TArray<uint8> CompressedBitmapS;
